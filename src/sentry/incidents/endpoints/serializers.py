@@ -36,6 +36,7 @@ from sentry.incidents.models import (
     AlertRuleTriggerAction,
 )
 from sentry.models.organizationmember import OrganizationMember
+from sentry.models.sentryapp import SentryApp
 from sentry.models.team import Team
 from sentry.models.user import User
 from sentry.snuba.dataset import Dataset
@@ -55,6 +56,7 @@ action_target_type_to_string = {
     AlertRuleTriggerAction.TargetType.USER: "user",
     AlertRuleTriggerAction.TargetType.TEAM: "team",
     AlertRuleTriggerAction.TargetType.SPECIFIC: "specific",
+    AlertRuleTriggerAction.TargetType.SENTRY_APP: "sentry_app",
 }
 string_to_action_target_type = {v: k for (k, v) in action_target_type_to_string.items()}
 
@@ -83,11 +85,13 @@ class AlertRuleTriggerActionSerializer(CamelSnakeModelSerializer):
             "target_type",
             "target_identifier",
             "integration",
+            "sentry_app",
         ]
         extra_kwargs = {
             "target_identifier": {"required": True},
             "target_display": {"required": False},
             "integration": {"required": False, "allow_null": True},
+            "sentry_app": {"required": False, "allow_null": True},
         }
 
     def validate_type(self, type):
@@ -153,6 +157,12 @@ class AlertRuleTriggerActionSerializer(CamelSnakeModelSerializer):
             if not attrs.get("integration"):
                 raise serializers.ValidationError(
                     {"integration": "Integration must be provided for slack"}
+                )
+
+        elif attrs.get("type") == AlertRuleTriggerAction.Type.SENTRY_APP:
+            if not attrs.get("sentry_app"):
+                raise serializers.ValidationError(
+                    {"sentry_app": "SentryApp must be provided for sentry_app"}
                 )
 
         return attrs
@@ -230,6 +240,9 @@ class AlertRuleTriggerSerializer(CamelSnakeModelSerializer):
             for action_data in actions:
                 if "integration_id" in action_data:
                     action_data["integration"] = action_data.pop("integration_id")
+
+                if "sentry_app_id" in action_data:
+                    action_data["sentry_app"] = action_data.pop("sentry_app_id")
 
                 if "id" in action_data:
                     action_instance = AlertRuleTriggerAction.objects.get(
