@@ -100,6 +100,34 @@ class AlertRuleCreateEndpointTest(AlertRuleIndexBase, APITestCase):
         alert_rule = AlertRule.objects.get(id=resp.data["id"])
         assert resp.data == serialize(alert_rule, self.user)
 
+    def test_sentry_app(self):
+        self.create_member(
+            user=self.user, organization=self.organization, role="owner", teams=[self.team]
+        )
+        sentry_app = self.create_sentry_app(
+            name="foo", organization=self.organization, is_alertable=True, verify_install=False
+        )
+        self.create_sentry_app_installation(
+            slug=sentry_app.slug, organization=self.organization, user=self.user
+        )
+        self.login_as(self.user)
+
+        valid_alert_rule = deepcopy(self.alert_rule_dict)
+        valid_alert_rule["name"] = "ValidSentryAppTestRule"
+        valid_alert_rule["triggers"][0]["actions"][0] = {
+            "type": "sentry_app",
+            "targetType": "sentry_app",
+            "targetIdentifier": sentry_app.id,
+            "sentryAppId": sentry_app.id,
+        }
+
+        with self.feature(["organizations:incidents", "organizations:integrations-sentry-app-metric-alerts"]):
+            resp = self.get_valid_response(
+                self.organization.slug, status_code=201, **valid_alert_rule
+            )
+        assert "id" in resp.data
+        alert_rule = AlertRule.objects.get(id=resp.data["id"])
+        assert resp.data == serialize(alert_rule, self.user)
 
     def test_no_label(self):
         self.create_member(
